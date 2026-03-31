@@ -56,6 +56,13 @@ class ReportGenerator(ReportGeneratorPort):
             fig = plt.figure(figsize=Config.FIG_SIZE_3D)
             ax = fig.add_subplot(111, projection='3d')
 
+            max_h = max(heights) * 1.2
+            ax.set_zlim(0, max_h)
+
+            ax.set_xlabel('X (px)')
+            ax.set_ylabel('Y (px)')
+            ax.set_zlabel('Height (px)')
+
             ax.set_box_aspect([1, 1, 1])
 
             for c in clusters:
@@ -75,23 +82,63 @@ class ReportGenerator(ReportGeneratorPort):
                 ax.plot_surface(
                     X, Y, Z,
                     color=mappable.to_rgba(c.estimated_weight_g),
-                    alpha=c.confidence * 0.6
+                    alpha=c.confidence * 0.6,
+                    edgecolor='k'
+                )
+
+                ax.text(
+                    cx, cy, h + 5,
+                    f"{round(c.estimated_weight_g,1)} g",
+                    fontsize=8,
+                    ha='center'
                 )
 
             ax.view_init(elev=Config.PLOT_ELEV, azim=Config.PLOT_AZIM)
+            ax.set_title("3D визуализация гроздей")
+
+            cbar = fig.colorbar(mappable, ax=ax, shrink=0.5, aspect=10)
+            cbar.set_label("Вес грозди (g)")
+
             self._save_fig(pdf, fig)
 
             fig, ax = plt.subplots(figsize=Config.FIG_SIZE_2D)
             ax.hist(weights, bins=15)
+            ax.set_title("Распределение веса")
+            self._save_fig(pdf, fig)
+
+            fig, ax = plt.subplots(figsize=Config.FIG_SIZE_2D)
+            ax.scatter(volumes, weights)
+            ax.set_title("Объём vs вес")
+            self._save_fig(pdf, fig)
+
+            fig, ax = plt.subplots(figsize=Config.FIG_SIZE_2D)
+            sc = ax.scatter(lower_r, upper_r, c=weights, cmap='coolwarm')
+            plt.colorbar(sc, ax=ax)
+            ax.set_title("Форма гроздей")
+            self._save_fig(pdf, fig)
+
+            fig, ax = plt.subplots(figsize=Config.FIG_SIZE_2D)
+            sc = ax.scatter(heights, weights, c=weights, cmap='viridis')
+            plt.colorbar(sc, ax=ax)
+            ax.set_title("Высота vs вес")
+            self._save_fig(pdf, fig)
+
+            fig, ax = plt.subplots(figsize=Config.FIG_SIZE_2D)
+            ax.hist(confidences, bins=10)
+            ax.set_title("Confidence")
             self._save_fig(pdf, fig)
 
             fig, ax = plt.subplots(figsize=(12, 6))
             ax.axis('off')
+
             ax.table(
                 cellText=df_round.values,
                 colLabels=df_round.columns,
                 loc='center'
             )
+
+            ax.set_title("Данные по гроздям")
+
             self._save_fig(pdf, fig)
 
         buffer.seek(0)

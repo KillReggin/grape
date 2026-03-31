@@ -1,0 +1,5 @@
+[run]
+omit =
+    app/frameworks/*
+    app/interface_adapters/*
+    app/ports/*

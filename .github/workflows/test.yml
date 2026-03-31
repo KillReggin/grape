@@ -27,4 +27,4 @@ jobs:
 
       - name: 🧪 Run tests
         run: |
-          pytest --maxfail=1 --disable-warnings -q
+          pytest --cov=app --cov-report=term-missing --cov-fail-under=70 --maxfail=1 --disable-warnings -q
