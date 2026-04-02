@@ -3,7 +3,7 @@ import numpy as np
 
 
 def test_frustum_params_basic():
-    use_case = ProcessImageUseCase(None, None, 300)
+    use_case = ProcessImageUseCase(None, None, 300, 50, 0.1)
 
     mask = np.zeros((10, 10))
     mask[2:8, 3:7] = 1
@@ -22,7 +22,7 @@ def test_frustum_params_basic():
 
 
 def test_compute_volume():
-    use_case = ProcessImageUseCase(None, None, 300)
+    use_case = ProcessImageUseCase(None, None, 300, 50, 0.1)
 
     volume = use_case._compute_volume(10, 5, 3)
 
@@ -30,7 +30,7 @@ def test_compute_volume():
 
 
 def test_empty_mask():
-    use_case = ProcessImageUseCase(None, None, 300)
+    use_case = ProcessImageUseCase(None, None, 300, 50, 0.1)
 
     mask = np.zeros((10, 10))
 
@@ -40,7 +40,7 @@ def test_empty_mask():
 
 
 def test_frustum_invalid_height():
-    use_case = ProcessImageUseCase(None, None, 300)
+    use_case = ProcessImageUseCase(None, None, 300, 50, 0.1)
 
     mask = np.zeros((10, 10))
     mask[5, 5] = 1  

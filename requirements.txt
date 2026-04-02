@@ -2,5 +2,7 @@ ultralytics
 numpy
 pandas
 matplotlib
+boto3
+psycopg2-binary
 pytest
 pytest-cov

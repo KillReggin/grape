@@ -1,6 +1,7 @@
+from abc import ABC, abstractmethod
 
 
-class StoragePort:
-
+class StoragePort(ABC):
+    @abstractmethod
     def save(self, data: bytes, filename: str) -> str:
         raise NotImplementedError

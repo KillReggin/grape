@@ -1,0 +1,42 @@
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: grape_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+
+  create-minio-bucket:
+    image: minio/mc:latest
+    container_name: grape_minio_init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set local http://minio:9000 ${S3_ACCESS_KEY_ID} ${S3_SECRET_ACCESS_KEY}; do sleep 1; done;
+      mc mb -p local/${S3_BUCKET} || true;
+      mc anonymous set none local/${S3_BUCKET} || true;
+      exit 0;
+      "
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: grape_postgres
+    environment:
+      POSTGRES_DB: grape_db
+      POSTGRES_USER: grape_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+volumes:
+  minio_data:
+  pg_data:
