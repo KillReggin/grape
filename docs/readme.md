@@ -3,6 +3,49 @@
 ## Назначение
  **прогнозировании урожайности виноградников**
 
+## Структура проекта
+```text
+app/
+  main.py                        # composition root (wiring)
+  config.py                      # переменные
+
+  entities/                      # доменные сущности
+    detection_result.py
+    grape_cluster.py
+    prediction_result.py
+
+  use_cases/                     # бизнес-логика
+    process_image.py
+
+  ports/                         # абстракции (контракты)
+    detector_port.py
+    report_port.py
+    storage_port.py
+    image_source_port.py
+    prediction_log_port.py
+
+  interface_adapters/            # адаптеры входа/выхода
+    cli.py
+
+  frameworks/                    # реализации портов
+    yolo_model.py
+    report_generate.py
+    s3_storage.py
+    s3_image_source.py
+    postgres_prediction_log.py
+
+tests/
+  fakes.py                      unit-тесты
+  test_use_case_basic.py
+  test_use_case_edge.py
+  test_frustum.py
+  test_main_and_config.py
+
+docs/
+  readme.md
+  clean_architecture_review.md
+```
+
 
 ## Предварительные требования
 - Python 3.9+
