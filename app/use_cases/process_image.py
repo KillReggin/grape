@@ -1,4 +1,6 @@
 from typing import Optional
+import hashlib
+import os
 
 import numpy as np
 
@@ -79,6 +81,13 @@ class ProcessImageUseCase:
             artifact_uri=artifact_uri,
         )
 
+    def _build_report_filename(self, image_ref: str) -> str:
+        # Deterministic artifact name for idempotent reruns of same image.
+        basename = os.path.basename(image_ref).replace(" ", "_")
+        stem = basename.rsplit(".", maxsplit=1)[0] if "." in basename else basename
+        digest = hashlib.sha1(image_ref.encode("utf-8")).hexdigest()[:12]
+        return f"grapes_report_{stem}_{digest}.pdf"
+
     def execute(self, image_path, results_dir=None, image_ref: Optional[str] = None):
         detection = self.detector.predict(image_path)
         prediction_image_ref = image_ref or image_path
@@ -152,10 +161,11 @@ class ProcessImageUseCase:
 
         artifact_uri = None
         if self.report_generator:
+            report_name = self._build_report_filename(prediction_image_ref)
             artifact_uri = self.report_generator.generate(
                 image_rgb=detection.image,
                 clusters=clusters,
-                results_dir=results_dir,
+                results_dir=results_dir or report_name,
             )
 
         self._save_log(

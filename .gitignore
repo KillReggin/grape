@@ -18,3 +18,14 @@ build/
 .idea/
 data/
 .env
+.env.*
+!.env.example
+
+# Airflow local state
+airflow/logs/
+airflow/plugins/
+
+# Local run artifacts
+*.pdf
+reports/
+tmp/

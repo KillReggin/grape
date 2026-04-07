@@ -41,13 +41,16 @@ class ReportGenerator(ReportGeneratorPort):
         clusters: Sequence[GrapeCluster],
         results_dir: Optional[str] = None,
     ) -> Optional[str]:
-        del results_dir
-
         if not clusters:
             return None
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"grapes_report_{timestamp}.pdf"
+        filename = None
+        if results_dir and str(results_dir).lower().endswith(".pdf"):
+            filename = str(results_dir).lstrip("/")
+
+        if not filename:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"grapes_report_{timestamp}.pdf"
 
         buffer = io.BytesIO()
         df = pd.DataFrame([c.__dict__ for c in clusters])

@@ -28,6 +28,22 @@ class PostgresPredictionLog(PredictionLogPort):
                     );
                     """
                 )
+                # Keep table idempotent by image_ref for batch reruns:
+                # deduplicate historical rows and enforce uniqueness.
+                cur.execute(
+                    """
+                    DELETE FROM prediction_runs t
+                    USING prediction_runs d
+                    WHERE t.image_ref = d.image_ref
+                      AND (t.created_at < d.created_at OR (t.created_at = d.created_at AND t.id < d.id));
+                    """
+                )
+                cur.execute(
+                    """
+                    CREATE UNIQUE INDEX IF NOT EXISTS uq_prediction_runs_image_ref
+                    ON prediction_runs (image_ref);
+                    """
+                )
 
     def save_prediction(
         self,
@@ -46,7 +62,13 @@ class PostgresPredictionLog(PredictionLogPort):
                         clusters_count,
                         artifact_uri
                     )
-                    VALUES (%s, %s, %s, %s);
+                    VALUES (%s, %s, %s, %s)
+                    ON CONFLICT (image_ref)
+                    DO UPDATE SET
+                        total_weight = EXCLUDED.total_weight,
+                        clusters_count = EXCLUDED.clusters_count,
+                        artifact_uri = EXCLUDED.artifact_uri,
+                        created_at = NOW();
                     """,
                     (image_ref, total_weight, clusters_count, artifact_uri),
                 )
