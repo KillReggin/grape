@@ -11,6 +11,8 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
+    networks:
+      - grape_net
 
   create-minio-bucket:
     image: minio/mc:latest
@@ -24,6 +26,8 @@ services:
       mc anonymous set none local/${S3_BUCKET} || true;
       exit 0;
       "
+    networks:
+      - grape_net
 
   postgres:
     image: postgres:16-alpine
@@ -36,7 +40,13 @@ services:
       - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
+    networks:
+      - grape_net
 
 volumes:
   minio_data:
   pg_data:
+
+networks:
+  grape_net:
+    name: grape_net

@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -26,8 +27,8 @@ done
 
 AIRFLOW_CONTAINER="${AIRFLOW_CONTAINER:-airflow_webserver}"
 GRAPE_BATCH_IMAGE="${GRAPE_BATCH_IMAGE:-grape-yield:1.0.0}"
-S3_ENDPOINT_AIRFLOW="${S3_ENDPOINT_AIRFLOW:-http://host.docker.internal:9000}"
-POSTGRES_HOST_AIRFLOW="${POSTGRES_HOST_AIRFLOW:-host.docker.internal}"
+S3_ENDPOINT_AIRFLOW="${S3_ENDPOINT_AIRFLOW:-http://minio:9000}"
+POSTGRES_HOST_AIRFLOW="${POSTGRES_HOST_AIRFLOW:-grape_postgres}"
 POSTGRES_PORT_AIRFLOW="${POSTGRES_PORT_AIRFLOW:-5432}"
 POSTGRES_DB_AIRFLOW="${POSTGRES_DB_AIRFLOW:-grape_db}"
 POSTGRES_USER_AIRFLOW="${POSTGRES_USER_AIRFLOW:-grape_user}"
@@ -72,7 +73,7 @@ docker exec "$AIRFLOW_CONTAINER" airflow variables set grape_report_prefix "repo
 docker exec "$AIRFLOW_CONTAINER" airflow variables set grape_model_path "model/weights/best.pt" >/dev/null
 docker exec "$AIRFLOW_CONTAINER" airflow variables set grape_batch_image "$GRAPE_BATCH_IMAGE" >/dev/null
 docker exec "$AIRFLOW_CONTAINER" airflow variables set docker_url "unix://var/run/docker.sock" >/dev/null
-docker exec "$AIRFLOW_CONTAINER" airflow variables set docker_network_mode "bridge" >/dev/null
+docker exec "$AIRFLOW_CONTAINER" airflow variables set docker_network_mode "grape_net" >/dev/null
 
 echo "Airflow bootstrap completed."
 echo "Connections: grape_s3, grape_postgres"

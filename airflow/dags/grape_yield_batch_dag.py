@@ -3,6 +3,7 @@ from datetime import timedelta
 
 import boto3
 import pendulum
+import psycopg2
 from airflow import DAG
 from airflow.hooks.base import BaseHook
 from airflow.models import Variable
@@ -36,9 +37,19 @@ def _marker_key(ds: str) -> str:
     return f"{marker_prefix.rstrip('/')}/dt={ds}/_SUCCESS.json"
 
 
-def _should_run_for_date(ds: str, **_):
+def _input_prefix_for_date(ds: str) -> str:
+    input_prefix = Variable.get("grape_input_prefix", default_var="raw/grapes").rstrip("/")
+    return f"{input_prefix}/dt={ds}/"
+
+
+def _report_prefix_for_date(ds: str) -> str:
+    report_prefix = Variable.get("grape_report_prefix", default_var="reports").rstrip("/")
+    return f"{report_prefix}/dt={ds}/"
+
+
+def _has_inputs_for_date(ds: str, **_):
     conn, endpoint, bucket = _get_s3_context()
-    marker_key = _marker_key(ds)
+    prefix = _input_prefix_for_date(ds)
 
     client = boto3.client(
         "s3",
@@ -48,16 +59,58 @@ def _should_run_for_date(ds: str, **_):
         region_name=Variable.get("grape_s3_region", default_var="us-east-1"),
     )
 
-    try:
-        client.head_object(Bucket=bucket, Key=marker_key)
-        print(f"Idempotency marker exists: s3://{bucket}/{marker_key}. Skipping run.")
-        return False
-    except client.exceptions.ClientError as exc:
-        code = exc.response.get("Error", {}).get("Code", "")
-        if code in {"404", "NoSuchKey", "NotFound"}:
-            print(f"No marker found: s3://{bucket}/{marker_key}. Running batch.")
-            return True
-        raise
+    response = client.list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=1)
+    has_input = response.get("KeyCount", 0) > 0
+    print(f"Input prefix: s3://{bucket}/{prefix}; has_input={has_input}")
+    return has_input
+
+
+def _validate_outputs(ds: str, **_):
+    s3_conn, endpoint, bucket = _get_s3_context()
+    report_prefix = _report_prefix_for_date(ds)
+
+    s3_client = boto3.client(
+        "s3",
+        endpoint_url=endpoint,
+        aws_access_key_id=s3_conn.login,
+        aws_secret_access_key=s3_conn.password,
+        region_name=Variable.get("grape_s3_region", default_var="us-east-1"),
+    )
+
+    response = s3_client.list_objects_v2(Bucket=bucket, Prefix=report_prefix, MaxKeys=10)
+    report_count = response.get("KeyCount", 0)
+    if report_count == 0:
+        raise ValueError(f"No report artifacts found under s3://{bucket}/{report_prefix}")
+
+    pg_conn = BaseHook.get_connection("grape_postgres")
+    db_port = int(pg_conn.port or 5432)
+    db_name = pg_conn.schema or "grape_db"
+
+    with psycopg2.connect(
+        host=pg_conn.host,
+        port=db_port,
+        dbname=db_name,
+        user=pg_conn.login,
+        password=pg_conn.password,
+    ) as db:
+        with db.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM prediction_runs
+                WHERE image_ref LIKE %s
+                """,
+                (f"%/dt={ds}/%",),
+            )
+            (rows_count,) = cur.fetchone()
+
+    if rows_count == 0:
+        raise ValueError(f"No DB rows in prediction_runs for dt={ds}")
+
+    print(
+        "Validation passed: "
+        f"reports_under_prefix={report_count}, prediction_runs_rows_for_dt={rows_count}"
+    )
 
 
 def _write_success_marker(ds: str, run_id: str, **_):
@@ -106,18 +159,12 @@ with DAG(
     tags=["batch", "ml", "grape", "docker"],
 ) as dag:
 
-    check_idempotency = ShortCircuitOperator(
-        task_id="check_idempotency_marker",
-        python_callable=_should_run_for_date,
-        op_kwargs={"ds": "{{ ds }}"},
-    )
-
     run_batch_inference = DockerOperator(
         task_id="run_batch_inference",
         image=Variable.get("grape_batch_image", default_var="grape-yield:1.0.0"),
         command="python -m app.batch_main",
         docker_url=Variable.get("docker_url", default_var="unix://var/run/docker.sock"),
-        network_mode=Variable.get("docker_network_mode", default_var="bridge"),
+        network_mode=Variable.get("docker_network_mode", default_var="grape_net"),
         auto_remove="success",
         tty=False,
         mount_tmp_dir=False,
@@ -136,10 +183,22 @@ with DAG(
         },
     )
 
+    check_inputs = ShortCircuitOperator(
+        task_id="check_input_images",
+        python_callable=_has_inputs_for_date,
+        op_kwargs={"ds": "{{ ds }}"},
+    )
+
+    validate_outputs = PythonOperator(
+        task_id="validate_outputs",
+        python_callable=_validate_outputs,
+        op_kwargs={"ds": "{{ ds }}"},
+    )
+
     write_success_marker = PythonOperator(
         task_id="write_success_marker",
         python_callable=_write_success_marker,
         op_kwargs={"ds": "{{ ds }}", "run_id": "{{ run_id }}"},
     )
 
-    check_idempotency >> run_batch_inference >> write_success_marker
+    check_inputs >> run_batch_inference >> validate_outputs >> write_success_marker
